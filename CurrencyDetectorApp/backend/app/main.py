@@ -4,13 +4,13 @@ Returns both full image detection and extracted currency images
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 import cv2
 import numpy as np
 from PIL import Image
 import io
 import base64
-from typing import List, Dict
+from typing import List
 
 from config import (
     BINARY_MODEL, BANKNOTE_MODEL, COIN_MODEL,
@@ -49,7 +49,7 @@ async def root():
             "Image extraction",
             "Background removal for coins"
         ],
-        "status": "running"
+        "status": "running" 
     }
 
 
@@ -62,7 +62,6 @@ async def health_check():
         "preprocessing": USE_PREPROCESSING,
         "ensemble": USE_ENSEMBLE
     }
-
 
 @app.post("/detect")
 async def detect(file: UploadFile = File(...), extract_images: bool = True):
@@ -77,29 +76,42 @@ async def detect(file: UploadFile = File(...), extract_images: bool = True):
         Detection results with optional extracted images
     """
     try:
-        # Read image
+        # Read image safely
         contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if image is None:
+        try:
+            pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
+            image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+        except Exception:
             raise HTTPException(status_code=400, detail="Invalid image file")
 
-        # Run detection
-        result = detect_currency(image)
+        try:
+            result = detect_currency(image)
+        except Exception:
+            # If detection fails, return empty detection instead of 500
+            result = {
+                'success': False,
+                'message': 'Detection failed or no currency detected',
+                'type': None,
+                'detections': []
+            }
 
-        if not result['success']:
+        # Normalize 'none' to None
+        detected_type = result.get('type')
+        if detected_type == 'none':
+            detected_type = None
+
+        # If detection failed, return success=False
+        if not result.get('success', False):
             return JSONResponse({
                 'success': False,
-                'message': result['message'],
-                'type': result.get('type'),
+                'message': result.get('message', 'No currency detected'),
+                'type': detected_type,
                 'detections': []
             })
 
         # Format detections
         detections_formatted = []
-
-        for i, det in enumerate(result['detections']):
+        for i, det in enumerate(result.get('detections', [])):
             detection_data = {
                 'id': i,
                 'class_name': det['class_name'],
@@ -112,10 +124,8 @@ async def detect(file: UploadFile = File(...), extract_images: bool = True):
                 extracted_img = extract_currency_image(
                     image,
                     det['bbox'],
-                    result['type']
+                    detected_type
                 )
-
-                # Convert to base64
                 _, buffer = cv2.imencode('.png', extracted_img)
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
                 detection_data['image'] = f"data:image/png;base64,{img_base64}"
@@ -124,7 +134,7 @@ async def detect(file: UploadFile = File(...), extract_images: bool = True):
 
         return JSONResponse({
             'success': True,
-            'type': result['type'],
+            'type': detected_type,
             'detections': detections_formatted,
             'count': len(detections_formatted)
         })
@@ -137,7 +147,6 @@ async def detect(file: UploadFile = File(...), extract_images: bool = True):
                 'error': str(e)
             }
         )
-
 
 def extract_currency_image(image: np.ndarray, bbox: List[float], currency_type: str) -> np.ndarray:
     """
@@ -206,14 +215,12 @@ def remove_background_circular(image: np.ndarray) -> np.ndarray:
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
     if circles is not None:
-        # Use detected circle
         circles = np.uint16(np.around(circles))
         circle = circles[0, 0]
         center = (circle[0], circle[1])
         radius = circle[2]
         cv2.circle(mask, center, radius, 255, -1)
     else:
-        # Use ellipse as fallback
         h, w = image.shape[:2]
         center = (w // 2, h // 2)
         axes = (int(w * 0.45), int(h * 0.45))
@@ -233,5 +240,4 @@ def remove_background_circular(image: np.ndarray) -> np.ndarray:
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
