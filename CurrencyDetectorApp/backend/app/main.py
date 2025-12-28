@@ -1,25 +1,39 @@
 from fastapi import FastAPI, File, UploadFile
-import numpy as np
-import cv2
-from utils.inference import process_image
+from fastapi.responses import JSONResponse
+from PIL import Image
+import io
+from utils.inference import detector
 
 app = FastAPI(title="MKD Currency Detector")
 
-@app.post("/predict/")
-async def predict(file: UploadFile = File(...)):
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    cv2.imwrite("temp.jpg", img)  # времено за YOLO pipeline
+@app.get("/")
+def read_root():
+    return {"message": "MKD Currency Detector API is running"}
 
-    img_rgb, coins, notes, results = process_image("temp.jpg", bg_removal_method='circular')
+@app.post("/detect")
+async def detect_currency(file: UploadFile = File(...)):
+    try:
+        image_bytes = await file.read()
+        image = Image.open(io.BytesIO(image_bytes))
 
-    response = {
-        "coins": [{"class":c['class'], "confidence":c['confidence']} for c in coins],
-        "notes": [{"class":n['class'], "confidence":n['confidence']} for n in notes]
-    }
-    return response
+        results = detector.detect(image)
+
+        return JSONResponse(content=results)
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    print("🚀 Starting MKD Currency Detector API...")
+    print("📍 Server will be available at: http://localhost:8000")
+    print("📚 API docs at: http://localhost:8000/docs")
+    # Remove reload=True when running directly
+    uvicorn.run(app, host="0.0.0.0", port=8000)

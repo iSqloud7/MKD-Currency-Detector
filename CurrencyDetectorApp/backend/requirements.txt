@@ -12,3 +12,8 @@ matplotlib>=3.8.0
 numpy>=1.26.0
 
 roboflow>=1.0.1
+
+# Add for TTS
+gtts
+pygame
+pyttsx3

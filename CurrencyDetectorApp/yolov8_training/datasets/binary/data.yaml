@@ -1,0 +1,7 @@
+names:
+  0: coin
+  1: note
+nc: 2
+test: test/images
+train: train/images
+val: val/images

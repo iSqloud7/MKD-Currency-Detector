@@ -1,0 +1,23 @@
+names:
+- 1000_note
+- 100_note
+- 10_coin
+- 10_note
+- 1_coin
+- 2000_note
+- 200_note
+- 2_coin
+- 500_note
+- 50_coin
+- 50_note
+- 5_coin
+nc: 12
+roboflow:
+  license: Public Domain
+  project: mkd-currency-recognition_v1
+  url: https://universe.roboflow.com/datasciencepro/mkd-currency-recognition_v1/dataset/6
+  version: 6
+  workspace: datasciencepro
+test: ../test/images
+train: ../train/images
+val: ../valid/images

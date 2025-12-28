@@ -1,0 +1,13 @@
+path: C:\Users\User5549\Desktop\Marija\MKD-Currency-Detector\CurrencyDetectorApp\yolov8_training\datasets\coin
+test: test/images
+train: train/images
+val: val/images
+
+nc: 5
+names:
+  0: 10_coin
+  1: 1_coin
+  2: 2_coin
+  3: 50_coin
+  4: 5_coin
+
