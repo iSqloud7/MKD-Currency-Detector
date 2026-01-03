@@ -2,16 +2,16 @@ import cv2
 import numpy as np
 from PIL import Image
 
-def preprocess_image(image: Image.Image, target_size: int=640):
+
+def preprocess_image(image: Image.Image, target_size: int = 640):
     img = np.array(image)
 
     if len(img.shape) == 3 and img.shape[2] == 3:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    # Resize while maintaining aspect ratio
     h, w = img.shape[:2]
     scale = target_size / max(h, w)
-    new_w, new_h = int(w * scale), int(h*scale)
+    new_w, new_h = int(w * scale), int(h * scale)
 
     img_resized = cv2.resize(img, (new_w, new_h))
 

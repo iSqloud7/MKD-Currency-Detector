@@ -1,23 +1,27 @@
+import sys
+import os
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
 import torch
 from ultralytics import YOLO
-from utils.preprocess import preprocess_image
-from config import BINARY_MODEL, BANKNOTE_MODEL, COIN_MODEL, DEVICE
 import warnings
+from config import BINARY_MODEL, BANKNOTE_MODEL, COIN_MODEL
 
-# Suppress YOLO warnings
 warnings.filterwarnings('ignore')
+
 
 class CurrencyDetector:
     def __init__(self):
         print("Loading models...")
-        # Specify task explicitly to avoid warnings
         self.binary_model = YOLO(BINARY_MODEL, task='detect')
         self.banknote_model = YOLO(BANKNOTE_MODEL, task='detect')
         self.coin_model = YOLO(COIN_MODEL, task='detect')
-        print("✅ All models loaded")
+        print("All models loaded!")
 
     def detect(self, image):
-        binary_results = self.binary_model(image, verbose=False)  # Add verbose=False
+        binary_results = self.binary_model(image, verbose=False)
 
         if len(binary_results[0].boxes) == 0:
             return {"success": True, "type": "none", "detections": []}
@@ -25,10 +29,10 @@ class CurrencyDetector:
         currency_type = int(binary_results[0].boxes[0].cls[0])
 
         if currency_type == 0:
-            results = self.banknote_model(image, verbose=False)  # Add verbose=False
+            results = self.banknote_model(image, verbose=False)
             type_name = "banknote"
         else:
-            results = self.coin_model(image, verbose=False)  # Add verbose=False
+            results = self.coin_model(image, verbose=False)
             type_name = "coin"
 
         detections = []
@@ -46,5 +50,6 @@ class CurrencyDetector:
             "detections": detections,
             "count": len(detections)
         }
+
 
 detector = CurrencyDetector()

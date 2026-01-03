@@ -224,8 +224,11 @@ class TestAPIEndpoints:
 
         assert response.status_code == 200
         result = response.json()
-        assert "type" in result
-        assert "detections" in result
+        assert "status" in result
+        assert "result" in result
+        assert "text" in result
+        assert "type" in result["result"]
+        assert "detections" in result["result"]
 
     def test_detect_endpoint_no_file(self, client):
         """Test detection endpoint without file"""
@@ -264,9 +267,11 @@ class TestIntegration:
         result = response.json()
 
         # Verify structure
-        assert "type" in result
-        assert "detections" in result
-        assert isinstance(result["detections"], list)
+        assert "status" in result
+        assert "result" in result
+        assert "type" in result["result"]
+        assert "detections" in result["result"]
+        assert isinstance(result["result"]["detections"], list)
 
     def test_tts_integration(self):
         """Test TTS integration with detection results"""
