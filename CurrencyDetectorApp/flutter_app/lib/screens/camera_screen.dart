@@ -18,7 +18,7 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
   late CameraController _controller;
   late Future<void> _initializeCameraFuture;
 
@@ -27,51 +27,183 @@ class _CameraScreenState extends State<CameraScreen> {
 
   File? _imageFile;
   bool _isLoading = false;
-  String _displayText = "Насочете ја камерата кон банкнота";
+  String _displayText = "Насочете ја камерата кон валутата";
+  DetectionResult? _lastResult;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
+    _checkApiHealth();
+  }
+
+  void _initializeCamera() {
     _controller = CameraController(
       widget.camera,
-      ResolutionPreset.medium,
+      ResolutionPreset.veryHigh,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
     _initializeCameraFuture = _controller.initialize();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
+    _tts.dispose();
     super.dispose();
   }
 
-  // Функција за обработка на сликата (заедничка за камера и тест слики)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Handle app lifecycle (when app goes to background/foreground)
+    if (!_controller.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      _controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+      setState(() {});
+    }
+  }
+
+  Future<void> _checkApiHealth() async {
+    final isHealthy = await _api.checkHealth();
+    if (!isHealthy && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Не може да се поврзе со серверот'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Поврзан со серверот'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> _processImage(File file) async {
     setState(() {
       _isLoading = true;
       _imageFile = file;
+      _displayText = "Се анализира...";
     });
 
     try {
-      final res = await _api.detectCurrency(file);
-      setState(() {
-        if (res != null) {
-          _displayText = res.text;
-          _tts.speak(res.text);
-        } else {
-          _displayText = "Не успеав да препознаам валута.";
+      final result = await _api.detectCurrency(file, extractImages: false);
+
+      if (result != null) {
+        setState(() {
+          _lastResult = result;
+          _displayText = result.toDisplayText();
+        });
+
+        // Speak result with delay to ensure it's heard
+        await Future.delayed(const Duration(milliseconds: 300));
+        await _tts.speak(_displayText);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result.success
+                  ? '✅ Детекција успешна'
+                  : '❌ Не е пронајдена валута'
+              ),
+              backgroundColor: result.success ? Colors.green : Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         }
-      });
+      } else {
+        setState(() {
+          _displayText = "Грешка при поврзување со серверот";
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Не може да се поврзе со API'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     } catch (e) {
-      debugPrint('Error: $e');
-      setState(() => _displayText = "Грешка при поврзување со серверот.");
+      debugPrint('❌ Error processing image: $e');
+      setState(() {
+        _displayText = "Грешка: ${e.toString()}";
+      });
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // Специјална функција за избор на слики од Assets (test_images папка)
+  Future<void> _takePicture() async {
+    try {
+      // Ensure camera is initialized
+      await _initializeCameraFuture;
+
+      // Check if controller is initialized
+      if (!_controller.value.isInitialized) {
+        throw Exception('Camera not initialized');
+      }
+
+      // Take picture
+      final image = await _controller.takePicture();
+
+      if (!mounted) return;
+
+      // Process the image
+      await _processImage(File(image.path));
+
+    } on CameraException catch (e) {
+      debugPrint('❌ Camera error: ${e.code} - ${e.description}');
+
+      if (mounted) {
+        String errorMessage = 'Грешка со камерата';
+
+        if (e.code == 'CameraAccessDenied') {
+          errorMessage = 'Дозволете пристап до камерата во подесувања';
+        } else if (e.code == 'CameraNotAvailable') {
+          errorMessage = 'Камерата не е достапна';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ Camera capture error: $e");
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Грешка: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showAssetPicker() {
     showDialog(
       context: context,
@@ -82,20 +214,37 @@ class _CameraScreenState extends State<CameraScreen> {
           child: GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
-            children: ['img01.jpg', 'img02.jpg', 'img03.jpg', 'img04.jpg'].map((imgName) {
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            children: [
+              'img01.jpg',
+              'img02.jpg',
+              'img03.jpg',
+              'img04.jpg'
+            ].map((imgName) {
               return GestureDetector(
                 onTap: () async {
                   Navigator.pop(context);
-                  // Конвертирање на Asset во File за да може ApiService да го прочита
+
                   final byteData = await rootBundle.load('test_images/$imgName');
                   final tempDir = await getTemporaryDirectory();
                   final file = File('${tempDir.path}/$imgName');
                   await file.writeAsBytes(byteData.buffer.asUint8List());
+
                   _processImage(file);
                 },
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Image.asset('test_images/$imgName', fit: BoxFit.cover),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'test_images/$imgName',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               );
             }).toList(),
@@ -112,69 +261,124 @@ class _CameraScreenState extends State<CameraScreen> {
         title: const Text('MKD Currency Detector'),
         centerTitle: true,
         backgroundColor: Colors.green,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Debug Info'),
+                  content: Text(
+                    'Success: ${_lastResult?.success}\n'
+                    'Type: ${_lastResult?.type}\n'
+                    'Count: ${_lastResult?.count}\n'
+                    'Detections: ${_lastResult?.detections.length}\n'
+                    'Camera: ${_controller.value.isInitialized ? "Initialized" : "Not initialized"}'
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Приказ на камера или веќе избрана слика
           Expanded(
             child: _imageFile != null
-                ? Image.file(_imageFile!, fit: BoxFit.contain, width: double.infinity)
+                ? Stack(
+                    children: [
+                      Image.file(
+                        _imageFile!,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                      ),
+                      if (_lastResult != null && _lastResult!.success)
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${_lastResult!.count} детекција',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
                 : FutureBuilder<void>(
-              future: _initializeCameraFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  return CameraPreview(_controller);
-                } else {
-                  return const Center(child: CircularProgressIndicator());
-                }
-              },
-            ),
+                    future: _initializeCameraFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done) {
+                        if (_controller.value.isInitialized) {
+                          return CameraPreview(_controller);
+                        } else {
+                          return const Center(
+                            child: Text('Камерата не е достапна'),
+                          );
+                        }
+                      } else {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+                    },
+                  ),
           ),
 
-          if (_isLoading) const LinearProgressIndicator(color: Colors.green),
+          if (_isLoading)
+            LinearProgressIndicator(
+              color: Colors.green,
+              backgroundColor: Colors.green[100],
+            ),
 
-          // Текст со резултат
-          Padding(
+          Container(
             padding: const EdgeInsets.all(16.0),
+            color: Colors.grey[100],
             child: Text(
               _displayText,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
 
-          // Копчиња за акција
           Padding(
             padding: const EdgeInsets.only(bottom: 40, left: 20, right: 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Копче за галерија (сега отвара Asset Picker)
                 LoadImagePicker(onTap: _showAssetPicker),
 
-                // Главно копче за сликање
                 CaptureButton(
                   isLoading: _isLoading,
-                  onPressed: () async {
-                    try {
-                      await _initializeCameraFuture;
-                      final photo = await _controller.takePicture();
-                      _processImage(File(photo.path));
-                    } catch (e) {
-                      debugPrint("Camera capture error: $e");
-                    }
-                  },
+                  onPressed: _takePicture,
                 ),
 
-                // Дополнително копче за ресетирање
                 if (_imageFile != null)
                   IconButton(
-                    icon: const Icon(Icons.refresh, size: 30, color: Colors.red),
-                    onPressed: () => setState(() {
-                      _imageFile = null;
-                      _displayText = "Насочете ја камерата кон банкнота";
-                    }),
-                  ),
+                    icon: const Icon(Icons.refresh, size: 30),
+                    color: Colors.red,
+                    onPressed: () {
+                      setState(() {
+                        _imageFile = null;
+                        _lastResult = null;
+                        _displayText = "Насочете ја камерата кон валутата";
+                      });
+                    },
+                  )
+                else
+                  const SizedBox(width: 48),
               ],
             ),
           ),
