@@ -1,7 +1,5 @@
-# PyTorch with CUDA 12.1 for MX450
-# pip install -r requirements-torch.txt
-
---extra-index-url https://download.pytorch.org/whl/cu121
+# PyTorch with CUDA 12.1 for NVIDIA MX450
+# Install with: pip install -r requirements-torch.txt --extra-index-url https://download.pytorch.org/whl/cu121
 
 torch>=2.1.0
 torchvision>=0.16.0

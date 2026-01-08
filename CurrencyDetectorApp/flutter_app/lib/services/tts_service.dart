@@ -10,111 +10,37 @@ class TtsService {
 
   Future<void> _initialize() async {
     try {
-      // Check available languages
-      var languages = await _tts.getLanguages;
-      print('📢 Available TTS languages: $languages');
-
-      // Check available engines
-      var engines = await _tts.getEngines;
-      print('📢 Available TTS engines: $engines');
-
-      // Set language to Macedonian
-      // Samsung may use different language codes
-      bool languageSet = false;
-
-      // Try different Macedonian language codes
-      for (var code in ['mk-MK', 'mk', 'mkd-MKD', 'mac']) {
-        try {
-          var result = await _tts.setLanguage(code);
-          if (result == 1) {
-            print('✅ Set language to: $code');
-            languageSet = true;
-            break;
-          }
-        } catch (e) {
-          print('⚠️  Failed to set language: $code');
-        }
+      // Пробај Македонски, ако не успее користи English
+      for (var code in ['mk-MK', 'mk', 'en-US']) {
+        var result = await _tts.setLanguage(code);
+        print("Setting TTS language $code: result $result");
+        if (result == 1) break;
       }
 
-      if (!languageSet) {
-        print('⚠️  Could not set Macedonian, trying English');
-        await _tts.setLanguage("en-US");
-      }
-
-      // Configure TTS settings
-      await _tts.setSpeechRate(0.45); // Slightly slower for clarity
+      await _tts.setSpeechRate(0.45);
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
-      // Try to set Samsung TTS engine if available
-      if (engines.toString().contains('samsung')) {
-        await _tts.setEngine("com.samsung.SMT");
-        print('✅ Using Samsung TTS engine');
-      }
-
-      // Set up completion handler to debug
-      _tts.setCompletionHandler(() {
-        print('✅ TTS completed speaking');
-      });
-
-      _tts.setErrorHandler((msg) {
-        print('❌ TTS error: $msg');
-      });
+      // Чекај да заврши говор
+      await _tts.awaitSpeakCompletion(true);
 
       _isInitialized = true;
-      print('✅ TTS initialized successfully');
-
-      // Test speak
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _testSpeak();
-
+      print("✅ TTS Initialized");
     } catch (e) {
-      print('❌ TTS initialization failed: $e');
       _isInitialized = false;
-    }
-  }
-
-  Future<void> _testSpeak() async {
-    try {
-      print('🔊 Testing TTS with: "Тест"');
-      await _tts.speak("Тест");
-    } catch (e) {
-      print('❌ Test speak failed: $e');
+      print('❌ TTS init error: $e');
     }
   }
 
   Future<void> speak(String text) async {
-    if (!_isInitialized) {
-      print('⚠️  TTS not initialized, attempting to reinitialize...');
-      await _initialize();
-    }
-
+    if (!_isInitialized) await _initialize();
     try {
-      print('🔊 Attempting to speak: $text');
-
-      // Stop any ongoing speech
       await _tts.stop();
-
-      // Small delay to ensure clean state
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // Speak the text
-      var result = await _tts.speak(text);
-
-      print('🔊 TTS speak returned: $result');
-
-      if (result == 1) {
-        print('✅ TTS speak initiated successfully');
-      } else {
-        print('❌ TTS speak failed (returned $result)');
-      }
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _tts.speak(text);
     } catch (e) {
       print('❌ TTS speak error: $e');
     }
-  }
-
-  Future<void> stop() async {
-    await _tts.stop();
   }
 
   void dispose() {

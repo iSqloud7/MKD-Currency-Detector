@@ -18,8 +18,9 @@ class DetectionResult {
       success: json['success'] ?? false,
       type: json['type'],
       detections: (json['detections'] as List<dynamic>?)
-          ?.map((e) => Detection.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [],
+          ?.map((e) => Detection.fromJson(e))
+          .toList() ??
+          [],
       count: json['count'] ?? 0,
       message: json['message'],
     );
@@ -44,19 +45,18 @@ class DetectionResult {
 
   String _formatCurrencyName(String className) {
     final Map<String, String> currencyMap = {
-      '10_note': '10 денари',
-      '50_note': '50 денари',
-      '100_note': '100 денари',
-      '200_note': '200 денари',
-      '500_note': '500 денари',
-      '1000_note': '1000 денари',
-      '2000_note': '2000 денари',
-      '5000_note': '5000 денари',
-      '1_coin': '1 денар',
-      '2_coin': '2 денари',
-      '5_coin': '5 денари',
-      '10_coin': '10 денари',
-      '50_coin': '50 денари',
+      '10_note': 'десет денари',
+      '50_note': 'педесет денари',
+      '100_note': 'сто денари',
+      '200_note': 'двестотини денари',
+      '500_note': 'петстотини денари',
+      '1000_note': 'илјада денари',
+      '2000_note': 'две илјади денари',
+      '1_coin': 'еден денар',
+      '2_coin': 'два денари',
+      '5_coin': 'пет денари',
+      '10_coin': 'десет денари',
+      '50_coin': 'педесет денари',
     };
     return currencyMap[className] ?? className.replaceAll('_', ' ');
   }
@@ -84,7 +84,8 @@ class Detection {
       confidence: (json['confidence'] ?? 0).toDouble(),
       bbox: (json['bbox'] as List<dynamic>?)
           ?.map((e) => (e as num).toDouble())
-          .toList() ?? [],
+          .toList() ??
+          [],
       image: json['image'],
     );
   }

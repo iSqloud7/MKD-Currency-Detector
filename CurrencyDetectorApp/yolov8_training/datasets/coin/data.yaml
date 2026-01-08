@@ -1,7 +1,7 @@
 path: C:\Users\User5549\Desktop\Marija\MKD-Currency-Detector\CurrencyDetectorApp\yolov8_training\datasets\coin
-test: test/images
-train: train/images
-val: val/images
+test: test/test_images
+train: train/test_images
+val: val/test_images
 
 nc: 5
 names:
