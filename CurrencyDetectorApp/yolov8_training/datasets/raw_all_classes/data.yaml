@@ -15,9 +15,9 @@ nc: 12
 roboflow:
   license: Public Domain
   project: mkd-currency-recognition_v1
-  url: https://universe.roboflow.com/datasciencepro/mkd-currency-recognition_v1/dataset/6
-  version: 6
+  url: https://universe.roboflow.com/datasciencepro/mkd-currency-recognition_v1/dataset/9
+  version: 9
   workspace: datasciencepro
-test: ../test/test_images
-train: ../train/test_images
-val: ../valid/test_images
+test: ../test/images
+train: ../train/images
+val: ../valid/images

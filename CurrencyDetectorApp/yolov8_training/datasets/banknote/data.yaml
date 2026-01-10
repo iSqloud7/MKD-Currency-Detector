@@ -1,10 +1,3 @@
-path: C:\Users\User5549\Desktop\Marija\MKD-Currency-Detector\CurrencyDetectorApp\yolov8_training\datasets\banknote
-
-test: test/test_images
-train: train/test_images
-val: val/test_images
-
-nc: 7
 names:
   0: 1000_note
   1: 100_note
@@ -13,4 +6,7 @@ names:
   4: 200_note
   5: 500_note
   6: 50_note
-
+nc: 7
+test: test/images
+train: train/images
+val: val/images

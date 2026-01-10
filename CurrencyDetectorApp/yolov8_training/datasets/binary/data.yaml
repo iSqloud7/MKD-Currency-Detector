@@ -2,6 +2,6 @@ names:
   0: coin
   1: note
 nc: 2
-test: test/test_images
-train: train/test_images
-val: val/test_images
+test: test/images
+train: train/images
+val: val/images
